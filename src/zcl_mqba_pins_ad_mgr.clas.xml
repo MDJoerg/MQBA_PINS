@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_CLAS" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <VSEOCLASS>
+    <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+    <VERSION>1</VERSION>
+    <LANGU>E</LANGU>
+    <DESCRIPT>MQBA: ABAP Daemon Manager</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <STATE>1</STATE>
+    <CLSCCINCL>X</CLSCCINCL>
+    <FIXPT>X</FIXPT>
+    <UNICODE>X</UNICODE>
+   </VSEOCLASS>
+   <DESCRIPTIONS>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>CREATE</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>create an instance of abap daemon manager</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>C_ERROR_EXISTS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>running instance</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>C_ERROR_INVALID</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>invalid: type / id missing</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>C_ERROR_NOT_FOUND</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>instance not found</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>C_ERROR_START</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>error starting new instance</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>C_ERROR_STOP</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>error starting new instance</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>RESET</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>reset error info</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MGR</CLSNAME>
+     <CMPNAME>SET_GUID</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>set the guid to memory</DESCRIPT>
+    </SEOCOMPOTX>
+   </DESCRIPTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>
