@@ -18,6 +18,43 @@
      <ENTRY>MQBA: Control ABAP Daemon</ENTRY>
      <LENGTH>25</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_BROKER</KEY>
+     <ENTRY>.</ENTRY>
+     <LENGTH>9</LENGTH>
+     <SPLIT>D</SPLIT>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CMD</KEY>
+     <ENTRY>Broker command</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_PAYL</KEY>
+     <ENTRY>message payload</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SEND</KEY>
+     <ENTRY>send command to proxy</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_START</KEY>
+     <ENTRY>start broker proxy</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STOP</KEY>
+     <ENTRY>stop broker proxy</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

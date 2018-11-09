@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_CLAS" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <VSEOCLASS>
+    <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+    <VERSION>1</VERSION>
+    <LANGU>E</LANGU>
+    <DESCRIPT>MQBA: Broker Proxy for native MQTT protocol</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <STATE>1</STATE>
+    <CLSCCINCL>X</CLSCCINCL>
+    <FIXPT>X</FIXPT>
+    <UNICODE>X</UNICODE>
+   </VSEOCLASS>
+   <DESCRIPTIONS>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+     <CMPNAME>CREATE</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>create an instance</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+     <CMPNAME>ERROR_RESET</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>reset all errors</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+     <CMPNAME>ERROR_SET</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>set the current error</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+     <CMPNAME>MR_CFG</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>MQBA: Broker Configuration</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_MQTT_PROTOCOL</CLSNAME>
+     <CMPNAME>MR_CLIENT</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>MQTT client</DESCRIPT>
+    </SEOCOMPOTX>
+   </DESCRIPTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>
