@@ -116,6 +116,14 @@ CLASS ZCL_MQBA_PINS_AD_MGR IMPLEMENTATION.
             i_value = CONV string( iv_payload )
         ).
 
+        IF iv_param IS NOT INITIAL.
+          pcp->set_field(
+              i_name  = 'PARAM'
+              i_value = CONV string( iv_param )
+          ).
+        ENDIF.
+
+
 * ------ send
         cl_abap_daemon_client_manager=>attach( i_instance_id = lv_guid )->send( pcp ).
 

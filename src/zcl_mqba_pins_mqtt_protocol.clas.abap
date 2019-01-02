@@ -11,34 +11,35 @@ public section.
   class-methods CREATE
     returning
       value(RR_PROXY) type ref to ZIF_MQBA_API_MQTT_PROXY .
-PROTECTED SECTION.
+protected section.
 
-  DATA ms_config_apc TYPE apc_connect_options .
-  DATA ms_will_topic TYPE zmqba_api_s_ebr_msg .
-  DATA mt_rec_msg TYPE zmqba_api_t_ebr_msg .
-  DATA mv_client_id TYPE string .
-  DATA mv_keep_alive TYPE i VALUE 60 ##NO_TEXT.
-  DATA mv_prefix TYPE string .
-  DATA mr_cfg TYPE REF TO zif_mqba_cfg_broker .
-  DATA mr_client TYPE REF TO if_mqtt_client .
-  DATA mv_error TYPE i .
-  DATA mv_error_text TYPE string .
+  data MS_CONFIG_APC type APC_CONNECT_OPTIONS .
+  data MS_WILL_TOPIC type ZMQBA_API_S_EBR_MSG .
+  data MT_REC_MSG type ZMQBA_API_T_EBR_MSG .
+  data MV_CLIENT_ID type STRING .
+  data MV_KEEP_ALIVE type I value 60 ##NO_TEXT.
+  data MV_PREFIX type STRING .
+  data MR_CFG type ref to ZIF_MQBA_CFG_BROKER .
+  data MR_CLIENT type ref to IF_MQTT_CLIENT .
+  data MV_ERROR type I .
+  data MV_ERROR_TEXT type STRING .
+  data MR_CALLBACK_NMSG type ref to ZIF_MQBA_CALLBACK_NEW_MSG .
 
-  METHODS error_reset .
-  METHODS error_set
-    IMPORTING
-      !iv_text TYPE data
-      !iv_code TYPE i DEFAULT 500 .
-  METHODS topic_to_external
-    IMPORTING
-      !iv_topic       TYPE string
-    RETURNING
-      VALUE(rv_topic) TYPE string .
-  METHODS topic_to_internal
-    IMPORTING
-      !iv_topic       TYPE string
-    RETURNING
-      VALUE(rv_topic) TYPE string .
+  methods ERROR_RESET .
+  methods ERROR_SET
+    importing
+      !IV_TEXT type DATA
+      !IV_CODE type I default 500 .
+  methods TOPIC_TO_EXTERNAL
+    importing
+      !IV_TOPIC type STRING
+    returning
+      value(RV_TOPIC) type STRING .
+  methods TOPIC_TO_INTERNAL
+    importing
+      !IV_TOPIC type STRING
+    returning
+      value(RV_TOPIC) type STRING .
 private section.
 ENDCLASS.
 
@@ -78,16 +79,29 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
 
   METHOD if_mqtt_event_handler~on_message.
 
-    TRY.
-        DATA: ls_message TYPE zmqba_api_s_ebr_msg.
+* --------- local data
+    DATA: ls_message TYPE zmqba_api_s_ebr_msg.
 
+* --------- try to forward/save
+    TRY.
+
+*       create msg
         ls_message-topic      = topic_to_internal( i_topic_name ).
         ls_message-qos        = CONV #( i_message->get_qos( ) ).
         ls_message-retain     = i_message->get_retain( ).
         ls_message-payload    = i_message->get_text( ).
         ls_message-msg_id     = i_envelope->get_message_number( ).
 
-        APPEND ls_message TO mt_rec_msg.
+*       check for direct forwarding
+        IF mr_callback_nmsg IS NOT INITIAL.
+          IF mr_callback_nmsg->on_message( ls_message ) EQ abap_false.
+*           fallback: add to internal table and process later
+            APPEND ls_message TO mt_rec_msg.
+          ENDIF.
+        ELSE.
+*       store
+          APPEND ls_message TO mt_rec_msg.
+        ENDIF.
 
       CATCH cx_mqtt_error INTO DATA(lx_mqtt_error).
         mv_error_text = |ERROR: { lx_mqtt_error->get_text( ) }|.
@@ -311,12 +325,56 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
   endmethod.
 
 
+  METHOD zif_mqba_api_mqtt_proxy~publish.
+
+* -------- check
+    rv_success = abap_false.
+    IF mr_client IS INITIAL
+      AND zif_mqba_api_mqtt_proxy~is_connected( ) EQ abap_false.
+      RETURN.
+    ENDIF.
+
+
+
+* -------- publish
+    TRY.
+        DATA(lr_msg) = cl_mqtt_message=>create( ).
+
+        lr_msg->set_text( iv_payload ).
+        lr_msg->set_qos( i_qos = CONV if_mqtt_types=>ty_mqtt_qos( iv_qos ) ).
+        lr_msg->set_retain( iv_retain ).
+
+        DATA(lv_topic) = topic_to_external( iv_topic ).
+
+        "DO dy_publish_send_nr TIMES.
+
+        mr_client->publish( EXPORTING i_topic_name = lv_topic
+                                                              i_message    = lr_msg
+                                                    IMPORTING e_envelope   = DATA(lr_envelope) ).
+
+        "dy_publish_message_nr = lo_envelope_publish->get_message_number( ).
+        "ENDDO.
+        rv_success = abap_true.
+      CATCH cx_mqtt_error INTO DATA(lx_mqtt_error).
+        DATA(lv_error_text) = lx_mqtt_error->get_text( ).
+        rv_success = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD zif_mqba_api_mqtt_proxy~reconnect.
 * disconnect
     zif_mqba_api_mqtt_proxy~disconnect( ).
 
 * connect
     rv_success = zif_mqba_api_mqtt_proxy~connect( ).
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_api_mqtt_proxy~set_callback_new_msg.
+    mr_callback_nmsg = ir_callback.
+    rr_self = me.
   ENDMETHOD.
 
 

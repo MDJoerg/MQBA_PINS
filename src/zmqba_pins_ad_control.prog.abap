@@ -13,7 +13,8 @@ PARAMETERS: p_start   RADIOBUTTON GROUP grp1 DEFAULT 'X'.
 PARAMETERS: p_stop    RADIOBUTTON GROUP grp1.
 SELECTION-SCREEN: ULINE.
 PARAMETERS: p_send    RADIOBUTTON GROUP grp1.
-PARAMETERS: p_cmd     TYPE string DEFAULT 'mycmd'.
+PARAMETERS: p_cmd     TYPE string DEFAULT 'PUBLISH'.
+PARAMETERS: p_param   TYPE string DEFAULT '/mytopic'.
 PARAMETERS: p_payl    TYPE string DEFAULT 'mydata'.
 
 
@@ -67,6 +68,7 @@ START-OF-SELECTION.
       ELSE.
         IF lr_ad_mgr->send_cmd(
             iv_cmd     = p_cmd
+            iv_param   = p_param
             iv_payload = p_payl ) EQ abap_true.
           output 'command sent to daemon'.
         ELSE.

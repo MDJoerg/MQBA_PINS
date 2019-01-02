@@ -6,6 +6,8 @@ class ZCL_MQBA_PINS_AD_MQTT definition
 public section.
   type-pools ABAP .
 
+  interfaces ZIF_MQBA_CALLBACK_NEW_MSG .
+
   methods IF_ABAP_DAEMON_EXTENSION~ON_ACCEPT
     redefinition .
   methods IF_ABAP_DAEMON_EXTENSION~ON_START
@@ -14,12 +16,19 @@ public section.
     redefinition .
   methods TASK_EXECUTE
     redefinition .
+  methods IF_ABAP_DAEMON_EXTENSION~ON_MESSAGE
+    redefinition .
 protected section.
 
-  data MR_PROXY type ref to ZIF_MQBA_API_MQTT_PROXY .
-  data MV_BROKER_ID type STRING .
-  data MS_CONFIG type ZMQBA_API_S_BRK_CFG .
+  class-data MR_PROXY type ref to ZIF_MQBA_API_MQTT_PROXY .
+  class-data MV_BROKER_ID type STRING .
+  class-data MS_CONFIG type ZMQBA_API_S_BRK_CFG .
 
+  methods ON_CMD_PUBLISH
+    importing
+      !I_MESSAGE type ref to IF_AC_MESSAGE_TYPE_PCP
+    returning
+      value(RV_SUCCESS) type ABAP_BOOL .
   methods BROKER_CONNECT
     returning
       value(RV_SUCCESS) type ABAP_BOOL .
@@ -142,17 +151,27 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     CHECK ms_config IS NOT INITIAL.
 
 
+* ------- set callback
+    IF ms_config-push_mode EQ abap_true.
+      mr_proxy->set_callback_new_msg( me ).
+    ENDIF.
+
+
 * ------- subscribe
+    DATA(lv_use_prefix) = COND #( WHEN ms_config-prefix IS NOT INITIAL
+                                  THEN abap_true
+                                  ELSE abap_false ).
+
     DATA(lv_success) = mr_proxy->subscribe_to(
       EXPORTING
         iv_topic      = '#'
-        iv_use_prefix = abap_true        " use external prefix
-*            iv_qos        = 0                " MQTT Quality of service option
+        iv_use_prefix = lv_use_prefix
+        iv_qos        = ms_config-qos_in
     ).
 
 
-* ------ set true
-    rv_success = abap_true.
+** ------ set true
+*    rv_success = abap_true.
 
   ENDMETHOD.
 
@@ -224,6 +243,42 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD if_abap_daemon_extension~on_message.
+
+* -------- local data
+    DATA: lv_cmd     TYPE string.
+    DATA: lv_success TYPE abap_bool.
+
+* -------- get command from message
+    TRY.
+        lv_cmd = i_message->get_text( ).
+      CATCH cx_ac_message_type_pcp_error.
+        RETURN.
+    ENDTRY.
+
+
+* -------- process command
+    CASE lv_cmd.
+      WHEN 'PUBLISH'.
+        lv_success = on_cmd_publish( i_message ).
+      WHEN OTHERS.
+* -------- not handled here
+        CALL METHOD super->if_abap_daemon_extension~on_message
+          EXPORTING
+            i_message = i_message
+            i_context = i_context.
+        RETURN.
+    ENDCASE.
+
+
+* -------- check success
+    IF lv_success EQ abap_false.
+      RAISE EXCEPTION TYPE cx_mqtt_error. "|Error processing command { lv_cmd }|.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD if_abap_daemon_extension~on_start.
 
 * -------- log
@@ -267,11 +322,43 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD on_cmd_publish.
+
+* -------- init
+    rv_success = abap_false.
+    IF mr_proxy IS INITIAL.
+      RETURN.
+    ENDIF.
+
+
+* -------- check reconnect
+    IF mr_proxy->is_connected( ) EQ abap_false.
+      RETURN.
+    ENDIF.
+
+* -------- unpack message
+    DATA(lv_topic)   = i_message->get_field( 'TOPIC' ).
+    DATA(lv_payload) = i_message->get_field( 'PAYLOAD' ).
+
+* -------- publish
+    rv_success = mr_proxy->publish(
+      EXPORTING
+        iv_topic   = lv_topic
+        iv_payload = lv_payload
+*      iv_qos     = 0
+*      iv_retain  = abap_false
+    ).
+
+
+  ENDMETHOD.
+
+
   METHOD task_execute.
 
 * --------- local data
-    DATA: lv_error TYPE abap_bool.
-    DATA: lv_cnt   TYPE i.
+    DATA: lv_error  TYPE abap_bool.
+    DATA: ls_result TYPE zmqba_api_s_ebr_msg_out.
+    DATA: lv_cnt    TYPE i.
 
 
 * --------- check
@@ -282,33 +369,79 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 * --------- get received messages and delete
     DATA(lt_msg) = mr_proxy->get_received_messages( ).
     DESCRIBE TABLE lt_msg LINES lv_cnt.
-    IF lt_msg[] IS NOT INITIAL.
-
-* ------------ check qrfc
-*      DATA(lr_qrfc) = zcl_mqba_factory=>create_util_qrfc( ).
-*      DATA(lv_quid) = CONV trfcqnam( ms_config-queue_name ).
-*      IF lv_quid IS INITIAL.
-*        lv_quid = 'ZMQBA-' && mv_broker_id.
-*      ENDIF.
-*
-**          start in queue
-*      lr_qrfc->set_qrfc_inbound( lv_quid ).
-*
+    IF lv_cnt GT 0.
       CALL FUNCTION 'Z_MQBA_API_EBROKER_MSGS_ADD'
-*        IN BACKGROUND TASK
-*        AS SEPARATE UNIT
+        DESTINATION 'NONE'
         EXPORTING
           iv_broker = mv_broker_id
-          it_msg    = lt_msg.
+          it_msg    = lt_msg
+        IMPORTING
+          ev_error  = lv_error
+          es_result = ls_result.
 
-*      lr_qrfc->transaction_end( ).
+      ASSERT ID zmqba_gw
+        SUBKEY 'TASK_EXECUTE:Forward'
+        FIELDS mv_broker_id
+               lt_msg
+               ls_result
+        CONDITION lv_error = abap_false.
+
     ENDIF.
-
 
 * --------- check connected
     IF broker_is_connected( ) EQ abap_false.
       broker_reconnect( ).
+      LOG-POINT ID zmqba_gw
+         SUBKEY 'TASK_EXECUTE:reconnect'.
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_callback_new_msg~on_message.
+
+* --------- local data
+    DATA: lt_props    TYPE  zmqba_msg_t_prp.
+    DATA: lv_error_text TYPE  zmqba_error_text.
+    DATA: lv_error      TYPE  zmqba_flag_error.
+    DATA: lv_guid       TYPE  zmqba_msg_guid.
+    DATA: lv_scope      TYPE  zmqba_msg_scope.
+
+
+* --------- init
+    rv_success = abap_false.
+    CHECK mr_proxy IS NOT INITIAL.
+
+
+* --------- forward to internal message broker
+    CALL FUNCTION 'Z_MQBA_API_EBROKER_MSG_ADD'
+      DESTINATION 'NONE'
+      EXPORTING
+        iv_broker     = mv_broker_id
+        iv_topic      = is_msg-topic
+        iv_payload    = is_msg-payload
+        iv_msg_id     = is_msg-msg_id
+        it_props      = lt_props
+      IMPORTING
+        ev_error_text = lv_error_text
+        ev_error      = lv_error
+        ev_guid       = lv_guid
+        ev_scope      = lv_scope.
+
+* -------- log when error
+    IF lv_error EQ abap_true.
+      LOG-POINT ID zmqba_gw
+        SUBKEY 'ZIF_MQBA_CALLBACK_NEW_MSG~ON_MESSAGE:ERROR'
+        FIELDS mv_broker_id
+               is_msg
+               lv_error_text.
+    ENDIF.
+
+* -------- sucess??
+    rv_success = COND #( WHEN lv_error EQ abap_false
+                         THEN abap_true
+                         ELSE abap_false ).
+
 
   ENDMETHOD.
 ENDCLASS.

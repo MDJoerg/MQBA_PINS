@@ -62,6 +62,12 @@
      <LANGU>E</LANGU>
      <DESCRIPT>MQBA: Broker configuration</DESCRIPT>
     </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MQTT</CLSNAME>
+     <CMPNAME>ON_CMD_PUBLISH</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>publish message to broker</DESCRIPT>
+    </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>
  </asx:abap>
