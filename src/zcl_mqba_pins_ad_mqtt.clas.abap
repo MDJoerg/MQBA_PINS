@@ -8,6 +8,8 @@ public section.
 
   interfaces ZIF_MQBA_CALLBACK_NEW_MSG .
 
+  methods DO_CMD
+    redefinition .
   methods IF_ABAP_DAEMON_EXTENSION~ON_ACCEPT
     redefinition .
   methods IF_ABAP_DAEMON_EXTENSION~ON_START
@@ -16,17 +18,34 @@ public section.
     redefinition .
   methods TASK_EXECUTE
     redefinition .
-  methods IF_ABAP_DAEMON_EXTENSION~ON_MESSAGE
-    redefinition .
 protected section.
 
   class-data MR_PROXY type ref to ZIF_MQBA_API_MQTT_PROXY .
   class-data MV_BROKER_ID type STRING .
   class-data MS_CONFIG type ZMQBA_API_S_BRK_CFG .
+  data MR_CONTEXT type ref to ZIF_MQBA_SHM_CONTEXT .
+  data MV_CNT_RECEIVED type SADL_COUNT .
+  data MV_CNT_PROCESSED type SADL_COUNT .
+  data MV_STAT_TIMESTAMP type TIMESTAMP .
+  data MV_CNT_RECEIVED_60S type SADL_COUNT .
+  data MV_CNT_PROCESSED_60S type SADL_COUNT .
+  data MV_CNT_RECONNECTING type SADL_COUNT .
+  data MV_CNT_BYTES_RECEIVED type SADL_COUNT .
+  data MV_CNT_FILTERED type SADL_COUNT .
 
-  methods ON_CMD_PUBLISH
+  methods DO_CMD_STATISTIC
+    returning
+      value(RV_SUCCESS) type ABAP_BOOL .
+  methods INIT_CONTEXT .
+  methods IS_MSG_FILTERED
     importing
-      !I_MESSAGE type ref to IF_AC_MESSAGE_TYPE_PCP
+      !IS_MSG type ZMQBA_API_S_EBR_MSG
+    returning
+      value(RV_FILTERED) type ABAP_BOOL .
+  methods DO_CMD_PUBLISH
+    importing
+      !IV_TOPIC type STRING
+      !IV_PAYLOAD type STRING
     returning
       value(RV_SUCCESS) type ABAP_BOOL .
   methods BROKER_CONNECT
@@ -182,6 +201,14 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 
     IF mr_proxy IS NOT INITIAL.
       rv_connected = mr_proxy->is_connected( ).
+*     disconnnected by by external?
+      IF rv_connected EQ abap_false.
+        DATA(lv_err) =  mr_proxy->get_error_text( ).
+        IF lv_err IS INITIAL.
+          lv_err = |unknown disconnect reason|.
+        ENDIF.
+        mr_context->put( iv_param = 'DISCONNECT_REASON' iv_value = lv_err ).
+      ENDIF.
     ENDIF.
 
   ENDMETHOD.
@@ -191,6 +218,155 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 
     broker_disconnect( ).
     rv_success = broker_connect( ).
+
+  ENDMETHOD.
+
+
+  METHOD do_cmd.
+
+* -------- local data
+    DATA: lv_msg TYPE string.
+
+
+* -------- init and log to context
+    init_context( ).
+    GET TIME STAMP FIELD DATA(lv_now).
+    DATA(lv_log) = |{ lv_now }: command arrived { iv_cmd } - { iv_param } - { iv_payload }|.
+    mr_context->put( iv_param = 'LAST_COMMAND' iv_value = lv_log ).
+
+
+* -------- process
+    CASE iv_cmd.
+      WHEN 'PUBLISH'.
+        rv_success = do_cmd_publish( iv_topic = iv_param iv_payload = iv_payload ).
+      WHEN 'STATISTIC'.
+        rv_success = do_cmd_statistic( ).
+      WHEN OTHERS.
+        rv_success = super->do_cmd(
+            ir_message = ir_message
+            ir_context = ir_context
+            iv_cmd     = iv_cmd
+            iv_param   = iv_param
+            iv_payload = iv_payload
+        ).
+    ENDCASE.
+
+* ------- log to context
+    IF rv_success EQ abap_false.
+      IF lv_msg IS INITIAL.
+        lv_msg = |Error processing command { iv_cmd }|.
+      ENDIF.
+      mr_context->put( iv_param = 'LAST_COMMAND_ERROR' iv_value = lv_msg ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD do_cmd_publish.
+
+* -------- init
+    rv_success = abap_false.
+    IF mr_proxy IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* -------- check reconnect
+    IF mr_proxy->is_connected( ) EQ abap_false.
+      RETURN.
+    ENDIF.
+
+* -------- publish
+    rv_success = mr_proxy->publish(
+      EXPORTING
+        iv_topic   = iv_topic
+        iv_payload = iv_payload
+*      iv_qos     = 0
+*      iv_retain  = abap_false
+    ).
+
+  ENDMETHOD.
+
+
+  METHOD do_cmd_statistic.
+
+* ----------- local vars
+    DATA lv_topic     TYPE string.
+    DATA lv_payload   TYPE string.
+    DATA lv_external  TYPE abap_bool.
+    DATA lv_gateway   TYPE zmqba_broker_id.
+
+* ----------- local macros
+    DEFINE distribute_broker.
+      IF ms_config-param1 IS NOT INITIAL.
+        lv_topic     = &1.
+        lv_payload   = &2.
+        lv_external  = ms_config-param2.
+        lv_gateway   = ms_config-param3.
+        lv_topic     = |{ ms_config-param1 }/{ lv_topic }|.
+
+        CALL FUNCTION 'Z_MQBA_API_BROKER_PUBLISH'
+          EXPORTING
+            iv_topic            = lv_topic
+            iv_payload          = lv_payload
+            iv_external         = lv_external
+            iv_gateway          = lv_gateway
+                  .
+      ENDIF.
+    END-OF-DEFINITION.
+
+
+* ----------- main fields
+    GET TIME STAMP FIELD DATA(lv_now).
+    mr_context->put( iv_param = 'STAT_UPDATED' iv_value = lv_now ).
+    mr_context->put( iv_param = 'STAT_RECEIVED' iv_value = mv_cnt_received ).
+    mr_context->put( iv_param = 'STAT_PROCESSED' iv_value = mv_cnt_processed ).
+    mr_context->put( iv_param = 'STAT_RECONNECTING' iv_value = mv_cnt_reconnecting ).
+
+* ---------- distribute kpi to broker
+    IF ms_config-param1 IS NOT INITIAL.
+      distribute_broker 'updated'         lv_now.
+      distribute_broker 'received'        mv_cnt_received.
+      distribute_broker 'processed'       mv_cnt_processed.
+      distribute_broker 'filtered'        mv_cnt_filtered.
+      distribute_broker 'bytes_received'  mv_cnt_bytes_received.
+      distribute_broker 'reconnecting'    mv_cnt_reconnecting.
+
+      DATA(lv_error) = mv_cnt_received - mv_cnt_processed - mv_cnt_filtered.
+      distribute_broker 'failed'  lv_error.
+    ENDIF.
+
+* ---------- check 60s statistics
+    DATA(lv_delta) = lv_now - mv_stat_timestamp.
+    IF mv_stat_timestamp IS INITIAL
+      OR lv_delta >= 60.
+
+      IF mv_cnt_received_60s GT 0.
+        DATA(lv_rec) = CONV integer( ( mv_cnt_received - mv_cnt_received_60s ) * 60 / lv_delta ).
+        mr_context->put( iv_param = 'STAT_RECEIVED_60S' iv_value = lv_rec ).
+        distribute_broker 'received_60s' lv_rec.
+      ENDIF.
+
+      IF mv_cnt_processed_60s GT 0.
+        DATA(lv_proc) = CONV integer( ( mv_cnt_processed - mv_cnt_processed_60s ) * 60 / lv_delta ).
+        mr_context->put( iv_param = 'STAT_PROCESSED_60S' iv_value = lv_proc ).
+        distribute_broker 'processed_60s' lv_proc.
+      ENDIF.
+
+*     calc errors
+      distribute_broker 'updated_60s' lv_now.
+      DATA(lv_err60) = lv_rec - lv_proc.
+      distribute_broker 'failed_60s' lv_err60.
+
+*     remember the values
+      mv_stat_timestamp = lv_now.
+      mv_cnt_received_60s = mv_cnt_received.
+      mv_cnt_processed_60s = mv_cnt_processed.
+
+    ENDIF.
+
+
+* ------------- success
+    rv_success = abap_true.
 
   ENDMETHOD.
 
@@ -243,47 +419,13 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD if_abap_daemon_extension~on_message.
-
-* -------- local data
-    DATA: lv_cmd     TYPE string.
-    DATA: lv_success TYPE abap_bool.
-
-* -------- get command from message
-    TRY.
-        lv_cmd = i_message->get_text( ).
-      CATCH cx_ac_message_type_pcp_error.
-        RETURN.
-    ENDTRY.
-
-
-* -------- process command
-    CASE lv_cmd.
-      WHEN 'PUBLISH'.
-        lv_success = on_cmd_publish( i_message ).
-      WHEN OTHERS.
-* -------- not handled here
-        CALL METHOD super->if_abap_daemon_extension~on_message
-          EXPORTING
-            i_message = i_message
-            i_context = i_context.
-        RETURN.
-    ENDCASE.
-
-
-* -------- check success
-    IF lv_success EQ abap_false.
-      RAISE EXCEPTION TYPE cx_mqtt_error. "|Error processing command { lv_cmd }|.
-    ENDIF.
-
-  ENDMETHOD.
-
-
   METHOD if_abap_daemon_extension~on_start.
 
 * -------- log
+    GET TIME STAMP FIELD DATA(lv_now).
     LOG-POINT ID zmqba_gw
-        SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_START'.
+        SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_START'
+        FIELDS lv_now.
 
 * -------- reset
     CLEAR:  mv_broker_id,
@@ -291,6 +433,9 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 
 * -------- get broker id from contect
     mv_broker_id = get_broker_id_from_context( i_context ).
+
+* -------- get memory context
+    init_context( ).
 
 * -------- connect now
     IF broker_connect( ) EQ abap_false.
@@ -303,52 +448,76 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 * -------- call super
     super->if_abap_daemon_extension~on_start( i_context ).
 
+* -------- context
+    mr_context->put( iv_param = 'STARTED' iv_value = lv_now ).
+    IF mr_proxy IS NOT INITIAL.
+      mr_context->put( iv_param = 'CLIENT_ID' iv_value = mr_proxy->get_client_id( ) ).
+    ENDIF.
+
   ENDMETHOD.
 
 
   METHOD if_abap_daemon_extension~on_stop.
 
+* -------- prepare
+    GET TIME STAMP FIELD DATA(lv_now).
     LOG-POINT ID zmqba_gw
-        SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_STOP'.
+        SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_STOP'
+        FIELDS lv_now.
 
+
+* -------- call super
+    super->if_abap_daemon_extension~on_stop(
+        i_message = i_message                  " ABAP Channels message type Push Channel Protocol (PCP)
+        i_context = i_context                  " ABAP Daemon framework Context interface (do not implement)
+    ).
+
+* -------- stop broker
     broker_disconnect( ).
 
-    CALL METHOD super->if_abap_daemon_extension~on_stop
-      EXPORTING
-        i_message = i_message
-        i_context = i_context.
-
+* -------- context
+    mr_context->put( iv_param = 'STOPPED' iv_value = lv_now ).
 
   ENDMETHOD.
 
 
-  METHOD on_cmd_publish.
+  METHOD init_context.
+    IF mr_context IS INITIAL.
+      mr_context = zcl_mqba_factory=>get_shm_context( ).
+      mr_context->set_group( |ZCL_MQBA_PINS_AD_MQTT:{ mv_broker_id }| ).
+      mr_context->clear( ).
+    ENDIF.
+  ENDMETHOD.
 
-* -------- init
-    rv_success = abap_false.
-    IF mr_proxy IS INITIAL.
-      RETURN.
+
+  METHOD is_msg_filtered.
+
+* ----- init
+    rv_filtered = abap_false.
+
+* ----- check topic
+    IF is_msg-topic IS INITIAL.
+      rv_filtered = abap_true.
     ENDIF.
 
+* ----- check payload empty
+    IF is_msg-payload IS INITIAL.
+      rv_filtered = abap_true.
+    ELSE.
+      DATA(lv_len) = strlen( is_msg-payload ).
+      ADD lv_len TO mv_cnt_bytes_received.
 
-* -------- check reconnect
-    IF mr_proxy->is_connected( ) EQ abap_false.
-      RETURN.
+*   check payload len not allowed
+      IF ms_config-max_payload GT 0
+        AND lv_len GT ms_config-max_payload.
+        rv_filtered = abap_true.
+      ENDIF.
     ENDIF.
 
-* -------- unpack message
-    DATA(lv_topic)   = i_message->get_field( 'TOPIC' ).
-    DATA(lv_payload) = i_message->get_field( 'PAYLOAD' ).
-
-* -------- publish
-    rv_success = mr_proxy->publish(
-      EXPORTING
-        iv_topic   = lv_topic
-        iv_payload = lv_payload
-*      iv_qos     = 0
-*      iv_retain  = abap_false
-    ).
-
+* ------ count?
+    IF rv_filtered EQ abap_true.
+      ADD 1 TO mv_cnt_filtered.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -361,15 +530,42 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     DATA: lv_cnt    TYPE i.
 
 
-* --------- check
-    ASSERT ID zmqba_gw
-      SUBKEY 'TASK_EXECUTE'
-      CONDITION mr_proxy IS BOUND.
+* --------- init
+    init_context( ).
 
-* --------- get received messages and delete
+* --------- check
+    GET TIME STAMP FIELD DATA(lv_start).
+    IF mr_proxy IS INITIAL.
+      mr_context->put( iv_param = 'TASK_EXECUTE_NO_PROXY' iv_value = |{ lv_start }| ).
+      RETURN.
+    ENDIF.
+
+
+* --------- get received messages and delete filtered
     DATA(lt_msg) = mr_proxy->get_received_messages( ).
     DESCRIBE TABLE lt_msg LINES lv_cnt.
-    IF lv_cnt GT 0.
+
+* --------- not in push mode - count received here
+      IF ms_config-push_mode EQ abap_false.
+        ADD lv_cnt TO mv_cnt_received.
+      ENDIF.
+
+* --------- check filtering and count again
+    LOOP AT lt_msg INTO DATA(ls_msg).
+      IF is_msg_filtered( ls_msg ) EQ abap_true.
+        DELETE lt_msg.
+      ENDIF.
+    ENDLOOP.
+    DESCRIBE TABLE lt_msg LINES lv_cnt.
+
+
+* --------- process
+    IF lv_cnt LE 0.
+      DATA(lv_empty_log) = |{ lv_start }: Periodic Task executed: nothing to do|.
+      mr_context->put( iv_param = 'TASK_EXECUTED_LAST' iv_value = lv_empty_log ).
+    ELSE.
+
+* --------- forward to mqba api
       CALL FUNCTION 'Z_MQBA_API_EBROKER_MSGS_ADD'
         DESTINATION 'NONE'
         EXPORTING
@@ -379,21 +575,43 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
           ev_error  = lv_error
           es_result = ls_result.
 
-      ASSERT ID zmqba_gw
-        SUBKEY 'TASK_EXECUTE:Forward'
-        FIELDS mv_broker_id
-               lt_msg
-               ls_result
-        CONDITION lv_error = abap_false.
+* ---------- statistics
+      GET TIME STAMP FIELD DATA(lv_end).
+      DATA(lv_delta) = lv_end - lv_start.
+      DATA(lv_stat) = |{ lv_start }: Periodic Task executed: { lv_cnt } messages in { lv_delta } msec|.
 
+      IF lv_error EQ abap_true.
+        lv_stat = 'ERROR: ' && lv_stat.
+      ELSE.
+        ADD lv_cnt TO mv_cnt_processed.
+      ENDIF.
+
+      mr_context->put( iv_param = 'TASK_EXECUTED_LAST' iv_value = lv_stat ).
     ENDIF.
 
 * --------- check connected
-    IF broker_is_connected( ) EQ abap_false.
-      broker_reconnect( ).
-      LOG-POINT ID zmqba_gw
-         SUBKEY 'TASK_EXECUTE:reconnect'.
+    DATA(lv_connected) = broker_is_connected( ).
+    DATA(lv_msg_conn) = 'true'.
+    IF lv_connected EQ abap_false.
+      DATA(lv_succ_rec) = broker_reconnect( ).
+      DATA(lv_msg_rc) = |{ lv_start }: |.
+
+      IF lv_succ_rec EQ abap_false.
+        lv_msg_rc = lv_msg_rc && 'ERROR'.
+      ELSE.
+        lv_msg_rc = lv_msg_rc && 'SUCCESS'.
+      ENDIF.
+
+      mr_context->put( iv_param = 'LAST_RECONNECTING_AT' iv_value = lv_msg_rc ).
+      ADD 1 TO mv_cnt_reconnecting.
+      lv_msg_conn = 'false'.
     ENDIF.
+    mr_context->put( iv_param = 'CLIENT_CONNECTED' iv_value = lv_msg_rc ).
+
+
+* ---------- statistics and other info distribution
+    do_cmd_statistic( ).
+
 
   ENDMETHOD.
 
@@ -408,9 +626,24 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     DATA: lv_scope      TYPE  zmqba_msg_scope.
 
 
+* --------- log message
+    init_context( ).
+    GET TIME STAMP FIELD DATA(lv_now).
+    mr_context->put( iv_param = 'LAST_MESSAGE_ARRIVED' iv_value = |{ lv_now }: { is_msg-topic }| ).
+    ADD 1 TO mv_cnt_received.
+
 * --------- init
     rv_success = abap_false.
-    CHECK mr_proxy IS NOT INITIAL.
+    IF mr_proxy IS INITIAL.
+      RETURN.
+    ENDIF.
+
+
+* --------- check msg filter
+    IF is_msg_filtered( is_msg ) EQ abap_true.
+      rv_success = abap_true.
+      RETURN.
+    ENDIF.
 
 
 * --------- forward to internal message broker
@@ -428,20 +661,21 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
         ev_guid       = lv_guid
         ev_scope      = lv_scope.
 
+* -------- runtime check
+    GET TIME STAMP FIELD DATA(lv_end).
+
 * -------- log when error
     IF lv_error EQ abap_true.
-      LOG-POINT ID zmqba_gw
-        SUBKEY 'ZIF_MQBA_CALLBACK_NEW_MSG~ON_MESSAGE:ERROR'
-        FIELDS mv_broker_id
-               is_msg
-               lv_error_text.
+      mr_context->put( iv_param = 'LAST_MESSAGE_ERROR' iv_value = |{ lv_now }..{ lv_end }: { is_msg-topic } : { lv_error_text }| ).
+    ELSE.
+      " statistics
+      ADD 1 TO mv_cnt_processed.
     ENDIF.
 
 * -------- sucess??
     rv_success = COND #( WHEN lv_error EQ abap_false
                          THEN abap_true
                          ELSE abap_false ).
-
 
   ENDMETHOD.
 ENDCLASS.

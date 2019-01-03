@@ -70,10 +70,13 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
 
 
   method IF_MQTT_EVENT_HANDLER~ON_CONNECT.
+    error_reset( ).
   endmethod.
 
 
   method IF_MQTT_EVENT_HANDLER~ON_DISCONNECT.
+    get TIME STAMP FIELD data(lv_now).
+    error_set( iv_text =  |Disconnected: { lv_now } - { i_status->get_text( ) }|  iv_code = 500 ).
   endmethod.
 
 
@@ -265,6 +268,11 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
     error_reset( ).
     rv_success = abap_true.
 
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_api_mqtt_proxy~get_client_id.
+    rv_client_id = mv_client_id.
   ENDMETHOD.
 
 

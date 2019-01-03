@@ -22,7 +22,7 @@
      <ID>S</ID>
      <KEY>P_BROKER</KEY>
      <ENTRY>.</ENTRY>
-     <LENGTH>9</LENGTH>
+     <LENGTH>14</LENGTH>
      <SPLIT>D</SPLIT>
     </item>
     <item>
@@ -30,6 +30,12 @@
      <KEY>P_CMD</KEY>
      <ENTRY>Broker command</ENTRY>
      <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_PARAM</KEY>
+     <ENTRY>message parameter</ENTRY>
+     <LENGTH>25</LENGTH>
     </item>
     <item>
      <ID>S</ID>

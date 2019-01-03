@@ -1,33 +1,34 @@
-class ZCL_MQBA_PINS_AD_MGR definition
-  public
-  create public .
+CLASS zcl_mqba_pins_ad_mgr DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
 
-public section.
+  PUBLIC SECTION.
 
-  interfaces ZIF_MQBA_PINS_AD_MGR .
+    INTERFACES zif_mqba_pins_ad_mgr .
 
-  class-methods CREATE
-    returning
-      value(RR_MGR) type ref to ZIF_MQBA_PINS_AD_MGR .
-protected section.
+    CLASS-METHODS create
+      RETURNING
+        VALUE(rr_mgr) TYPE REF TO zif_mqba_pins_ad_mgr .
+  PROTECTED SECTION.
 
-  data MV_ADF_TYPE type STRING .
-  data MV_ADF_ID type STRING .
-  data MV_ERROR type STRING .
-  data MV_RESULT type STRING .
-  data C_ERROR_INVALID type STRING value 'invalid configuration' ##NO_TEXT.
-  data C_ERROR_EXISTS type STRING value 'already registered' ##NO_TEXT.
-  data C_ERROR_START type STRING value 'could not start' ##NO_TEXT.
-  data C_ERROR_STOP type STRING value 'could not stop' ##NO_TEXT.
-  data C_ERROR_NOT_FOUND type STRING value 'instance not found' ##NO_TEXT.
+    DATA mv_adf_type TYPE string .
+    DATA mv_adf_id TYPE string .
+    DATA mv_error TYPE string .
+    DATA mv_result TYPE string .
+    DATA c_error_invalid TYPE string VALUE 'invalid configuration' ##NO_TEXT.
+    DATA c_error_exists TYPE string VALUE 'already registered' ##NO_TEXT.
+    DATA c_error_start TYPE string VALUE 'could not start' ##NO_TEXT.
+    DATA c_error_stop TYPE string VALUE 'could not stop' ##NO_TEXT.
+    DATA c_error_not_found TYPE string VALUE 'instance not found' ##NO_TEXT.
+    DATA c_shm_group TYPE string VALUE 'ZCL_MQBA_PINS_AD_MGR' ##NO_TEXT.
 
-  methods RESET .
-  methods SET_GUID
-    importing
-      !IV_GUID type DATA optional
-    returning
-      value(RV_SUCCESS) type ABAP_BOOL .
-private section.
+    METHODS reset .
+    METHODS set_guid
+      IMPORTING
+        !iv_guid          TYPE data OPTIONAL
+      RETURNING
+        VALUE(rv_success) TYPE abap_bool .
+  PRIVATE SECTION.
 ENDCLASS.
 
 
@@ -35,10 +36,10 @@ ENDCLASS.
 CLASS ZCL_MQBA_PINS_AD_MGR IMPLEMENTATION.
 
 
-  method CREATE.
+  METHOD create.
 *   future use: test double or enhancement concept
-    rr_mgr = new ZCL_MQBA_PINS_AD_MGR( ).
-  endmethod.
+    rr_mgr = NEW zcl_mqba_pins_ad_mgr( ).
+  ENDMETHOD.
 
 
   METHOD reset.
@@ -47,43 +48,61 @@ CLASS ZCL_MQBA_PINS_AD_MGR IMPLEMENTATION.
 
 
   METHOD set_guid.
-    CHECK zif_mqba_pins_ad_mgr~is_valid( ) EQ abap_true.
-    DATA(lv_memid) = CONV char40( |{ mv_adf_type }:{ mv_adf_id }| ).
-
-    IF iv_guid IS NOT INITIAL.
-      DATA(lv_guid) = CONV string( iv_guid ).
-      EXPORT lv_memid FROM lv_guid TO MEMORY ID lv_memid.
-    ELSE.
-      FREE MEMORY ID lv_memid.
+    IF zif_mqba_pins_ad_mgr~is_valid( ) EQ abap_false.
+      rv_success = abap_false.
+      RETURN.
     ENDIF.
+
+*    DATA(lv_memid) = CONV char40( |{ mv_adf_type }:{ mv_adf_id }| ).
+*
+*    IF iv_guid IS NOT INITIAL.
+*      DATA(lv_guid) = CONV string( iv_guid ).
+*      EXPORT lv_memid FROM lv_guid TO MEMORY ID lv_memid.
+*    ELSE.
+*      FREE MEMORY ID lv_memid.
+*    ENDIF.
+
+    DATA(lr_util) = zcl_mqba_factory=>get_shm_context( ).
+    lr_util->set_group( mv_adf_type ).
+    rv_success = lr_util->put(
+        iv_param   = mv_adf_id
+        iv_value   = iv_guid ).
+
   ENDMETHOD.
 
 
-  method ZIF_MQBA_PINS_AD_MGR~GET_CMD_RESULT.
+  METHOD zif_mqba_pins_ad_mgr~get_cmd_result.
     rv_result = mv_result.
-  endmethod.
+  ENDMETHOD.
 
 
-  method ZIF_MQBA_PINS_AD_MGR~GET_ERROR.
+  METHOD zif_mqba_pins_ad_mgr~get_error.
     rv_error = mv_error.
-  endmethod.
+  ENDMETHOD.
 
 
   METHOD zif_mqba_pins_ad_mgr~get_guid.
-    CHECK zif_mqba_pins_ad_mgr~is_valid( ) EQ abap_true.
-    DATA(lv_memid) = CONV char40( |{ mv_adf_type }:{ mv_adf_id }| ).
-    IMPORT lv_memid TO rv_guid FROM MEMORY ID lv_memid.
+    IF zif_mqba_pins_ad_mgr~is_valid( ) EQ abap_false.
+      RETURN.
+    ENDIF.
+
+*    DATA(lv_memid) = CONV char40( |{ mv_adf_type }:{ mv_adf_id }| ).
+*    IMPORT lv_memid TO rv_guid FROM MEMORY ID lv_memid.
+
+    DATA(lr_util) = zcl_mqba_factory=>get_shm_context( ).
+    lr_util->set_group( mv_adf_type ).
+    rv_guid = lr_util->get( mv_adf_id ).
   ENDMETHOD.
 
 
-  method ZIF_MQBA_PINS_AD_MGR~GET_ID.
+  METHOD zif_mqba_pins_ad_mgr~get_id.
     rv_id = mv_adf_id.
-  endmethod.
+  ENDMETHOD.
 
 
-  method ZIF_MQBA_PINS_AD_MGR~GET_TYPE.
+  METHOD zif_mqba_pins_ad_mgr~get_type.
     rv_type = mv_adf_type.
-  endmethod.
+  ENDMETHOD.
 
 
   METHOD zif_mqba_pins_ad_mgr~is_valid.
@@ -140,10 +159,10 @@ CLASS ZCL_MQBA_PINS_AD_MGR IMPLEMENTATION.
   ENDMETHOD.
 
 
-  method ZIF_MQBA_PINS_AD_MGR~SET_ID.
+  METHOD zif_mqba_pins_ad_mgr~set_id.
     mv_adf_id = iv_id.
     rr_self = me.
-  endmethod.
+  ENDMETHOD.
 
 
   METHOD zif_mqba_pins_ad_mgr~set_type.
