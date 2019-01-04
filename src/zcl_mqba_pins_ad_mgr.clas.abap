@@ -130,6 +130,7 @@ CLASS ZCL_MQBA_PINS_AD_MGR IMPLEMENTATION.
 * ------ create pcp message
         DATA(pcp) = cl_ac_message_type_pcp=>create( ).
         pcp->set_text( CONV string( iv_cmd ) ).
+
         pcp->set_field(
             i_name  = 'PAYLOAD'
             i_value = CONV string( iv_payload )

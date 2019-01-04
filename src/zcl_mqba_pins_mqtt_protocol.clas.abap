@@ -276,6 +276,37 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_mqba_api_mqtt_proxy~get_client_state.
+
+* ------- check client
+    IF mr_client IS INITIAL.
+      rv_state = zif_mqba_api_mqtt_proxy~c_state_not_initialized.
+      RETURN.
+    ENDIF.
+
+*   check
+    TRY.
+        DATA(lv_conn_state) = mr_client->get_context( )->get_connection_state( ).
+
+        CASE lv_conn_state.
+          WHEN if_mqtt_types=>connection_state-connecting.
+            rv_state = zif_mqba_api_mqtt_proxy~c_state_connecting.
+          WHEN if_mqtt_types=>connection_state-connected.
+            rv_state = zif_mqba_api_mqtt_proxy~c_state_connected.
+          WHEN if_mqtt_types=>connection_state-disconnecting.
+            rv_state = zif_mqba_api_mqtt_proxy~c_state_disconnecting.
+          WHEN if_mqtt_types=>connection_state-disconnected.
+            rv_state = zif_mqba_api_mqtt_proxy~c_state_disconnected.
+          WHEN OTHERS.
+            rv_state = zif_mqba_api_mqtt_proxy~c_state_unknown.
+        ENDCASE.
+      CATCH cx_mqtt_error INTO DATA(lx_mqtt_error).
+        rv_state = zif_mqba_api_mqtt_proxy~c_state_error && '_' && lx_mqtt_error->get_text( ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   method ZIF_MQBA_API_MQTT_PROXY~GET_ERROR.
     rv_error = mv_error.
   endmethod.
@@ -297,9 +328,12 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
   METHOD zif_mqba_api_mqtt_proxy~is_connected.
 
 *   init
+    error_reset( ).
     rv_success = abap_false.
-    error_set( 'mqtt isconnected' ).
-    CHECK mr_client IS NOT INITIAL.
+    IF mr_client IS INITIAL.
+      error_set( 'mqtt is not initialized' ).
+      RETURN.
+    ENDIF.
 
 *   check
     TRY.
@@ -319,9 +353,6 @@ CLASS ZCL_MQBA_PINS_MQTT_PROTOCOL IMPLEMENTATION.
         error_set( lv_error_text ).
         RETURN.
     ENDTRY.
-
-* -------- finally
-    error_reset( ).
 
   ENDMETHOD.
 

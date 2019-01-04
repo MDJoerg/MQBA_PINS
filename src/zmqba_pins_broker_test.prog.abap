@@ -1,10 +1,11 @@
 *&---------------------------------------------------------------------*
 *& Report ZMQBA_PINS_BROKER_TEST
 *&---------------------------------------------------------------------*
-*&
+*& Test program for mqtt protocol implementation (client)
 *&---------------------------------------------------------------------*
 REPORT zmqba_pins_broker_test NO STANDARD PAGE HEADING.
 
+* ------------- interface
 TABLES: ztc_mqbabrk.
 PARAMETERS: p_broker       LIKE ztc_mqbabrk-broker_id OBLIGATORY.
 PARAMETERS: p_topic        TYPE zmqba_topic_mask DEFAULT '#'.
@@ -14,7 +15,7 @@ PARAMETERS: p_usep         AS CHECKBOX DEFAULT 'X'. " use custimized prefix
 PARAMETERS: p_forw         AS CHECKBOX DEFAULT 'X'. " forward to mqba
 PARAMETERS: p_qrfc         AS CHECKBOX DEFAULT 'X'. " forward as qrfc
 
-
+* -------------- local macros
 DEFINE protocol.
   WRITE: / &1.
 END-OF-DEFINITION.
@@ -23,6 +24,7 @@ DEFINE exit_error.
   WRITE: / &1 COLOR 6.
   RETURN.
 END-OF-DEFINITION.
+
 
 START-OF-SELECTION.
 

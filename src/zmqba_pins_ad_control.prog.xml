@@ -15,8 +15,8 @@
    <TPOOL>
     <item>
      <ID>R</ID>
-     <ENTRY>MQBA: Control ABAP Daemon</ENTRY>
-     <LENGTH>25</LENGTH>
+     <ENTRY>MQBA: Control Generic ABAP Daemon</ENTRY>
+     <LENGTH>33</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -27,9 +27,23 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_CLASS</KEY>
+     <ENTRY>.</ENTRY>
+     <LENGTH>9</LENGTH>
+     <SPLIT>D</SPLIT>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_CMD</KEY>
      <ENTRY>Broker command</ENTRY>
      <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ID</KEY>
+     <ENTRY>.</ENTRY>
+     <LENGTH>9</LENGTH>
+     <SPLIT>D</SPLIT>
     </item>
     <item>
      <ID>S</ID>

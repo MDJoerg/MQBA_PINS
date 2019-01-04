@@ -5,9 +5,10 @@
 *&---------------------------------------------------------------------*
 REPORT zmqba_pins_ad_control NO STANDARD PAGE HEADING.
 
-
+* -------- interface
 TABLES: ztc_mqbabrk.
-PARAMETERS: p_broker  LIKE ztc_mqbabrk-broker_id OBLIGATORY.
+PARAMETERS: p_class   TYPE seoclsname   OBLIGATORY DEFAULT 'ZCL_MQBA_PINS_AD_MQTT'.
+PARAMETERS: p_id      TYPE zmqba_param  OBLIGATORY DEFAULT 'DEFAULT'.
 SELECTION-SCREEN: ULINE.
 PARAMETERS: p_start   RADIOBUTTON GROUP grp1 DEFAULT 'X'.
 PARAMETERS: p_stop    RADIOBUTTON GROUP grp1.
@@ -18,35 +19,22 @@ PARAMETERS: p_param   TYPE string DEFAULT '/mytopic'.
 PARAMETERS: p_payl    TYPE string DEFAULT 'mydata'.
 
 
+* -------- local macros
+DEFINE exit_error.
+  WRITE: / &1 COLOR 6.
+  RETURN.
+END-OF-DEFINITION.
+
+DEFINE output.
+  WRITE: / &1.
+END-OF-DEFINITION.
+
 START-OF-SELECTION.
-
-  DEFINE exit_error.
-    WRITE: / &1 COLOR 6.
-    RETURN.
-  END-OF-DEFINITION.
-
-  DEFINE output.
-    WRITE: / &1.
-  END-OF-DEFINITION.
-
-
-* ------- create broker config
-  DATA(lr_brk_cfg) = zcl_mqba_factory=>get_broker_config( p_broker ).
-  IF lr_brk_cfg IS INITIAL.
-    " wrong or missing config
-    exit_error 'wrong broker config'.
-  ENDIF.
-
-* ------- get config and check
-  DATA(ls_cfg) = lr_brk_cfg->get_config( ).
-  IF ls_cfg-impl_class IS INITIAL.
-    exit_error 'missing broker implementation class'.
-  ENDIF.
 
 * ------- get ad manager
   DATA(lr_ad_mgr) = zcl_mqba_pins_ad_mgr=>create( ).
-  lr_ad_mgr->set_id( p_broker ).
-  lr_ad_mgr->set_type( ls_cfg-impl_class ).
+  lr_ad_mgr->set_id( p_id ).
+  lr_ad_mgr->set_type( p_class ).
 
 * -------- process command
   CASE 'X'.

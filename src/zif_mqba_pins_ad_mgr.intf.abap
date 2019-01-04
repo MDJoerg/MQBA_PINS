@@ -31,7 +31,7 @@ interface ZIF_MQBA_PINS_AD_MGR
     importing
       !IV_CMD type DATA
       !IV_PARAM type DATA optional
-      !IV_PAYLOAD type DATA
+      !IV_PAYLOAD type DATA optional
     returning
       value(RV_SUCCESS) type ABAP_BOOL .
   methods GET_ERROR

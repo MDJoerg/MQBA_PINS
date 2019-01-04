@@ -7,6 +7,7 @@ public section.
   type-pools ABAP .
 
   interfaces ZIF_MQBA_CALLBACK_NEW_MSG .
+  interfaces ZIF_MQBA_DAEMON_MGR .
 
   methods DO_CMD
     redefinition .
@@ -32,6 +33,7 @@ protected section.
   data MV_CNT_RECONNECTING type SADL_COUNT .
   data MV_CNT_BYTES_RECEIVED type SADL_COUNT .
   data MV_CNT_FILTERED type SADL_COUNT .
+  data MR_AD_MGR type ref to ZIF_MQBA_PINS_AD_MGR .
 
   methods DO_CMD_STATISTIC
     returning
@@ -365,6 +367,15 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     ENDIF.
 
 
+* ------------- client state
+    DATA(lv_state) = zif_mqba_api_mqtt_proxy=>c_state_not_initialized.
+    IF mr_proxy IS NOT INITIAL.
+      lv_state = mr_proxy->get_client_state( ).
+    ENDIF.
+    mr_context->put( iv_param = 'CLIENT_STATE' iv_value = lv_state ).
+    distribute_broker 'client_state' lv_state.
+
+
 * ------------- success
     rv_success = abap_true.
 
@@ -537,7 +548,10 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     GET TIME STAMP FIELD DATA(lv_start).
     IF mr_proxy IS INITIAL.
       mr_context->put( iv_param = 'TASK_EXECUTE_NO_PROXY' iv_value = |{ lv_start }| ).
-      RETURN.
+      IF broker_connect( ) EQ abap_false
+        OR mr_proxy IS INITIAL.
+        RETURN.
+      ENDIF.
     ENDIF.
 
 
@@ -546,9 +560,9 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     DESCRIBE TABLE lt_msg LINES lv_cnt.
 
 * --------- not in push mode - count received here
-      IF ms_config-push_mode EQ abap_false.
-        ADD lv_cnt TO mv_cnt_received.
-      ENDIF.
+    IF ms_config-push_mode EQ abap_false.
+      ADD lv_cnt TO mv_cnt_received.
+    ENDIF.
 
 * --------- check filtering and count again
     LOOP AT lt_msg INTO DATA(ls_msg).
@@ -591,7 +605,6 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 
 * --------- check connected
     DATA(lv_connected) = broker_is_connected( ).
-    DATA(lv_msg_conn) = 'true'.
     IF lv_connected EQ abap_false.
       DATA(lv_succ_rec) = broker_reconnect( ).
       DATA(lv_msg_rc) = |{ lv_start }: |.
@@ -604,9 +617,7 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 
       mr_context->put( iv_param = 'LAST_RECONNECTING_AT' iv_value = lv_msg_rc ).
       ADD 1 TO mv_cnt_reconnecting.
-      lv_msg_conn = 'false'.
     ENDIF.
-    mr_context->put( iv_param = 'CLIENT_CONNECTED' iv_value = lv_msg_rc ).
 
 
 * ---------- statistics and other info distribution
@@ -676,6 +687,113 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     rv_success = COND #( WHEN lv_error EQ abap_false
                          THEN abap_true
                          ELSE abap_false ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~is_available.
+
+* ------- init
+    rv_available = abap_false.
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* ------- get a ping command
+    rv_available = mr_ad_mgr->send_cmd( iv_cmd = 'PING' ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~publish.
+* ------- init
+    rv_success = abap_false.
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* ------- get a ping command
+    rv_success = mr_ad_mgr->send_cmd(
+      iv_cmd      = 'PUBLISH'
+      iv_param    = iv_topic
+      iv_payload  = iv_payload
+    ).
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~restart.
+* ------- init
+    rv_success = abap_false.
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* ------- stop
+    zif_mqba_daemon_mgr~stop( ).
+
+* ------- start
+    rv_success = zif_mqba_daemon_mgr~start( ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~set_config.
+
+* ------- init and check
+    rv_success = abap_false.
+    IF ir_cfg IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* -------- get config
+    ms_config    = ir_cfg->get_config( ).
+    mv_broker_id = ir_cfg->get_id( ).
+
+* -------- check again
+    IF ms_config IS INITIAL
+      OR mv_broker_id IS INITIAL
+      OR ms_config-impl_class IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* ------- get ad manager
+    mr_ad_mgr = zcl_mqba_pins_ad_mgr=>create( ).
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ELSE.
+      mr_ad_mgr->set_id( mv_broker_id ).
+      mr_ad_mgr->set_type( ms_config-impl_class ).
+    ENDIF.
+
+* ------- finally true
+    rv_success = abap_true.
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~start.
+
+* ------- init
+    rv_success = abap_false.
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* -------- call ad manager
+    rv_success = mr_ad_mgr->start( ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_mqba_daemon_mgr~stop.
+* ------- init
+    rv_success = abap_false.
+    IF mr_ad_mgr IS INITIAL.
+      RETURN.
+    ENDIF.
+
+* -------- call ad manager
+    rv_success = mr_ad_mgr->stop( ).
 
   ENDMETHOD.
 ENDCLASS.
