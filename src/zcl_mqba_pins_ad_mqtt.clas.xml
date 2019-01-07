@@ -58,6 +58,12 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_MQBA_PINS_AD_MQTT</CLSNAME>
+     <CMPNAME>GC_TOPIC_DEFAULT</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>prefix for publishing Daemon statistics</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_MQBA_PINS_AD_MQTT</CLSNAME>
      <CMPNAME>GET_BROKER_ID_FROM_CONTEXT</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>get the name of the proxy id used for config</DESCRIPT>

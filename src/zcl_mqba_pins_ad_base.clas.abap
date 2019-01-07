@@ -40,7 +40,7 @@ protected section.
 
   class-data GV_NAME type STRING .
   class-data GV_STOPPED type ABAP_BOOL .
-  class-data GV_INTERVAL type I value 300 ##NO_TEXT.
+  class-data GV_INTERVAL type I value 300000 ##NO_TEXT.
 
   methods DO_CMD_PING
     returning

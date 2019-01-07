@@ -35,6 +35,7 @@ protected section.
   data MV_CNT_FILTERED type SADL_COUNT .
   data MR_AD_MGR type ref to ZIF_MQBA_PINS_AD_MGR .
   data MV_STAT_LAST_CALL type SYUZEIT .
+  constants GC_TOPIC_DEFAULT type STRING value '/sap/MQBADaemon' ##NO_TEXT.
 
   methods DO_CMD_STATISTIC
     returning
@@ -329,8 +330,13 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
 *   set prefix
       lv_prefix = ms_config-param1.
       IF lv_prefix IS INITIAL.
-        lv_prefix = '/sap/mqba_daemon/' && gv_name.
-        TRANSLATE lv_prefix TO LOWER CASE.
+        DATA(lv_broker_id) = mv_broker_id.
+        IF lv_broker_id IS INITIAL.
+          lv_broker_id = 'default'.
+        ELSE.
+          TRANSLATE lv_broker_id TO LOWER CASE.
+        ENDIF.
+        lv_prefix = |{ gc_topic_default }/{ lv_broker_id }|.
       ENDIF.
 
 *   external handling: param2 activated -> no external distribution
@@ -481,6 +487,16 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
          FIELDS  mv_broker_id
          CONDITION 1 = 2.
     ENDIF.
+
+* ------- check interval
+    gv_interval = 5000. " default 5 sec
+
+*  if ms_config is NOT INITIAL.
+*
+*  else.
+*
+*  endif.
+
 
 * -------- call super
     super->if_abap_daemon_extension~on_start( i_context ).
