@@ -34,6 +34,8 @@ protected section.
   data MV_CNT_BYTES_RECEIVED type SADL_COUNT .
   data MV_CNT_FILTERED type SADL_COUNT .
   data MR_AD_MGR type ref to ZIF_MQBA_PINS_AD_MGR .
+  data MV_STAT_LAST_CALL type SYUZEIT .
+  constants GC_TOPIC_DEFAULT type STRING value '/sap/MQBADaemon' ##NO_TEXT.
 
   methods DO_CMD_STATISTIC
     returning
@@ -296,16 +298,19 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     DATA lv_payload   TYPE string.
     DATA lv_external  TYPE abap_bool.
     DATA lv_gateway   TYPE zmqba_broker_id.
+    DATA lv_prefix    TYPE string.
+
 
 * ----------- local macros
     DEFINE distribute_broker.
-      IF ms_config-param1 IS NOT INITIAL.
+      IF lv_prefix IS NOT INITIAL.
+*       main fields
         lv_topic     = &1.
+        lv_topic     = |{ lv_prefix }/{ lv_topic }|.
         lv_payload   = &2.
-        lv_external  = ms_config-param2.
-        lv_gateway   = ms_config-param3.
-        lv_topic     = |{ ms_config-param1 }/{ lv_topic }|.
+        CONDENSE lv_payload.
 
+*       call mqba api
         CALL FUNCTION 'Z_MQBA_API_BROKER_PUBLISH'
           EXPORTING
             iv_topic            = lv_topic
@@ -316,7 +321,34 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
       ENDIF.
     END-OF-DEFINITION.
 
+* ===================== prepare mqtt distribution
+*   check time
+    GET TIME.
+    IF mv_stat_last_call EQ sy-uzeit.
+      CLEAR lv_prefix.  " <- no external distribution in this call (1 per second)
+    ELSE.
+*   set prefix
+      lv_prefix = ms_config-param1.
+      IF lv_prefix IS INITIAL.
+        DATA(lv_broker_id) = mv_broker_id.
+        IF lv_broker_id IS INITIAL.
+          lv_broker_id = 'default'.
+        ELSE.
+          TRANSLATE lv_broker_id TO LOWER CASE.
+        ENDIF.
+        lv_prefix = |{ gc_topic_default }/{ lv_broker_id }|.
+      ENDIF.
 
+*   external handling: param2 activated -> no external distribution
+      lv_external  = COND #( WHEN ms_config-param2 EQ abap_true
+                             THEN abap_false
+                             ELSE abap_true ).
+      lv_gateway   = ms_config-param3.
+*   set current time
+      mv_stat_last_call = sy-uzeit.
+    ENDIF.
+
+* ====================== get and distribute statistics
 * ----------- main fields
     GET TIME STAMP FIELD DATA(lv_now).
     mr_context->put( iv_param = 'STAT_UPDATED' iv_value = lv_now ).
@@ -325,7 +357,7 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     mr_context->put( iv_param = 'STAT_RECONNECTING' iv_value = mv_cnt_reconnecting ).
 
 * ---------- distribute kpi to broker
-    IF ms_config-param1 IS NOT INITIAL.
+    IF lv_prefix IS NOT INITIAL.
       distribute_broker 'updated'         lv_now.
       distribute_broker 'received'        mv_cnt_received.
       distribute_broker 'processed'       mv_cnt_processed.
@@ -455,6 +487,16 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
          FIELDS  mv_broker_id
          CONDITION 1 = 2.
     ENDIF.
+
+* ------- check interval
+    gv_interval = 5000. " default 5 sec
+
+*  if ms_config is NOT INITIAL.
+*
+*  else.
+*
+*  endif.
+
 
 * -------- call super
     super->if_abap_daemon_extension~on_start( i_context ).
