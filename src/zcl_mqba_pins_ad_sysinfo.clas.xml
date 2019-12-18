@@ -4,7 +4,6 @@
   <asx:values>
    <VSEOCLASS>
     <CLSNAME>ZCL_MQBA_PINS_AD_SYSINFO</CLSNAME>
-    <VERSION>1</VERSION>
     <LANGU>E</LANGU>
     <DESCRIPT>MQBA: System Info Daemon</DESCRIPT>
     <STATE>1</STATE>
