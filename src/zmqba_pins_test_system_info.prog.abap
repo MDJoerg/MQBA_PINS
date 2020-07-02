@@ -6,7 +6,7 @@
 REPORT zmqba_pins_test_system_info NO STANDARD PAGE HEADING.
 
 * ----------- interface
-PARAMETERS: p_param TYPE zmqba_param OBLIGATORY DEFAULT 'DEFAULT'.
+PARAMETERS: p_param TYPE zmqba_param OBLIGATORY DEFAULT 'DEFAULT' LOWER CASE.
 
 
 START-OF-SELECTION.

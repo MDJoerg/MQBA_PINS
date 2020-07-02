@@ -19,6 +19,8 @@ public section.
     redefinition .
   methods TASK_EXECUTE
     redefinition .
+  methods IF_ABAP_DAEMON_EXTENSION~ON_ERROR
+    redefinition .
 protected section.
 
   class-data MR_PROXY type ref to ZIF_MQBA_API_MQTT_PROXY .
@@ -462,6 +464,34 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD if_abap_daemon_extension~on_error.
+
+* -------- prepare
+    GET TIME STAMP FIELD DATA(lv_now).
+    LOG-POINT ID zmqba_gw
+        SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_ERROR'
+        FIELDS lv_now.
+
+* -------- get memory context
+    init_context( ).
+    IF mr_context IS BOUND.
+      mr_context->put( iv_param = 'ERROR' iv_value = lv_now ).
+    ENDIF.
+
+* -------- call super
+    CALL METHOD super->if_abap_daemon_extension~on_error
+      EXPORTING
+        i_code    = i_code
+        i_reason  = i_reason
+        i_context = i_context.
+
+* -------- try restart
+    if_abap_daemon_extension~on_stop( i_context ).
+    if_abap_daemon_extension~on_start( i_context ).
+
+  ENDMETHOD.
+
+
   METHOD if_abap_daemon_extension~on_start.
 
 * -------- log
@@ -502,7 +532,10 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     super->if_abap_daemon_extension~on_start( i_context ).
 
 * -------- context
-    mr_context->put( iv_param = 'STARTED' iv_value = lv_now ).
+    IF mr_context IS BOUND.
+      mr_context->put( iv_param = 'STARTED' iv_value = lv_now ).
+    ENDIF.
+
     IF mr_proxy IS NOT INITIAL.
       mr_context->put( iv_param = 'CLIENT_ID' iv_value = mr_proxy->get_client_id( ) ).
     ENDIF.
@@ -518,6 +551,8 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
         SUBKEY 'IF_ABAP_DAEMON_EXTENSION~ON_STOP'
         FIELDS lv_now.
 
+* -------- get memory context
+    init_context( ).
 
 * -------- call super
     super->if_abap_daemon_extension~on_stop(
@@ -529,7 +564,9 @@ CLASS ZCL_MQBA_PINS_AD_MQTT IMPLEMENTATION.
     broker_disconnect( ).
 
 * -------- context
-    mr_context->put( iv_param = 'STOPPED' iv_value = lv_now ).
+    IF mr_context IS bound.
+      mr_context->put( iv_param = 'STOPPED' iv_value = lv_now ).
+    ENDIF.
 
   ENDMETHOD.
 

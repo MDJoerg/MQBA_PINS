@@ -26,6 +26,15 @@ CLASS ZCL_MQBA_PINS_AD_SYSINFO IMPLEMENTATION.
 
 * -------- init system info service
     mr_sysinfo = zcl_mqba_pins_system_info=>create( ).
+
+    TRY.
+        IF gv_name IS INITIAL.
+          DATA(ls_info) = i_context->get_start_caller_info( ).
+          gv_name = ls_info-name.
+        ENDIF.
+      CATCH cx_root.
+    ENDTRY.
+
     mr_sysinfo->set_config_id( gv_name ).
     gv_interval = 60000. " set default to 60 seconds
 

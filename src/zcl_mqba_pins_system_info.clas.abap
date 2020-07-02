@@ -514,7 +514,16 @@ CLASS ZCL_MQBA_PINS_SYSTEM_INFO IMPLEMENTATION.
 
 
   METHOD zif_mqba_pins_system_info~set_config_id.
+*   store id
     mv_config_id = iv_config_id.
+
+*   set a topic prefix
+    IF iv_config_id IS NOT INITIAL
+      AND iv_config_id NE 'DEFAULT'
+      AND mv_topic IS NOT INITIAL.
+      mv_topic = |{ mv_topic }/{ iv_config_id }|.
+    ENDIF.
+
     rr_self = me.
   ENDMETHOD.
 ENDCLASS.
